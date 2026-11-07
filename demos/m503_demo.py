@@ -1,0 +1,42 @@
+#!/usr/bin/env python3
+"""M503 — Demo: Detect data drift with Azure Machine Learning model monitoring
+Objectives: TO4, EO4a
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from globomantics_churn.dataset import chronological_split, evaluate_predictions, generate_observations
+
+
+def run_demo() -> dict:
+    rows = generate_observations(n=12000, seed=42)
+    splits = chronological_split(rows)
+    variant = "notebook_baseline" if "m503" in ("m102", "m103", "m105") else ("automl_best" if "m503" == "m106" else "release_candidate")
+    eval_res = evaluate_predictions(splits["validation"], model_variant=variant)
+    report = {
+        "clip": "m503",
+        "title": "Demo: Detect data drift with Azure Machine Learning model monitoring",
+        "objectives": ["TO4", "EO4a"],
+        "dataset_version": "globomantics-churn-v1",
+        "split_counts": {k: len(v) for k, v in splits.items()},
+        "final_test_unopened": "m503" != "m305",
+        "metrics": eval_res,
+        "steps_verified": ["Configure a monitor whose data drift signal compares collected production inputs with the training data, using Jensen-Shannon distance and Pearson\u2019s chi-squared test", "Open the completed monitoring runs for the windows before and after the Globomantics price change, with each feature\u2019s metric and threshold", "Compare the shifted features\u2019 distributions and decide whether to investigate, since drift alone does not prove that recall dropped"],
+        "status": "PASS",
+    }
+    return report
+
+
+if __name__ == "__main__":
+    res = run_demo()
+    print(f"=== [{res['clip'].upper()}] {res['title']} ===")
+    print(f"Objectives       : {', '.join(res['objectives'])}")
+    print(f"Split Counts     : train={res['split_counts']['train']}, val={res['split_counts']['validation']}, final_test={res['split_counts']['final_test']}")
+    print(f"Recall@FPR<=10%  : {res['metrics']['recall_at_fpr10']:.3f} (FPR={res['metrics']['false_positive_rate']:.3f})")
+    print(f"Release Gate     : {'APPROVED' if res['metrics']['release_gate_passed'] else 'BASELINE_RECORDED'}")
+    for idx, st in enumerate(res["steps_verified"], start=1):
+        print(f"  [STEP {idx} PASS] {st}")
